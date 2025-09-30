@@ -3,6 +3,7 @@ const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
 const rateLimit = require('express-rate-limit');
+const mongoose = require('mongoose');
 require('dotenv').config();
 
 const app = express();
@@ -77,11 +78,22 @@ app.use((err, req, res, next) => {
   });
 });
 
-// Start server
-app.listen(PORT, () => {
-  console.log(`🚀 Server is running on port ${PORT}`);
-  console.log(`📱 Environment: ${process.env.NODE_ENV || 'development'}`);
-  console.log(`🌐 Health check: http://localhost:${PORT}/health`);
+// MongoDB connection and start server
+const mongoUri = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/chatz';
+
+mongoose.set('strictQuery', true);
+mongoose.connect(mongoUri, {
+  serverSelectionTimeoutMS: 10000
+}).then(() => {
+  console.log('✅ Connected to MongoDB');
+  app.listen(PORT, () => {
+    console.log(`🚀 Server is running on port ${PORT}`);
+    console.log(`📱 Environment: ${process.env.NODE_ENV || 'development'}`);
+    console.log(`🌐 Health check: http://localhost:${PORT}/health`);
+  });
+}).catch((err) => {
+  console.error('❌ MongoDB connection error:', err.message);
+  process.exit(1);
 });
 
 module.exports = app;
