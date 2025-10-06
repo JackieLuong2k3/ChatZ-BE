@@ -3,11 +3,11 @@ const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
 const rateLimit = require('express-rate-limit');
-const mongoose = require('mongoose');
+const { connectDB } = require('./config/database');
 require('dotenv').config();
 
 const app = express();
-const PORT = process.env.PORT || 3000;
+const PORT = process.env.PORT || 5000;
 
 // Security middleware
 app.use(helmet());
@@ -43,19 +43,12 @@ app.get('/', (req, res) => {
   });
 });
 
-// Health check endpoint
-app.get('/health', (req, res) => {
-  res.json({
-    status: 'healthy',
-    uptime: process.uptime(),
-    timestamp: new Date().toISOString()
-  });
-});
+
 
 // API routes
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/users', require('./routes/users'));
-app.use('/api/chat', require('./routes/chat'));
+app.use('/api/notifications', require('./routes/NotificationRoute'));
 
 // 404 handler
 app.use('*', (req, res) => {
@@ -79,21 +72,24 @@ app.use((err, req, res, next) => {
 });
 
 // MongoDB connection and start server
-const mongoUri = process.env.MONGO_URI || 'mongodb://127.0.0.1:27017/chatz';
+const startServer = async () => {
+  try {
+    // Kết nối đến MongoDB
+    await connectDB();
+    
+    // Khởi động server
+    app.listen(PORT, () => {
+      console.log(`🚀 Server is running on port ${PORT}`);
+      console.log(`📱 Environment: ${process.env.NODE_ENV || 'development'}`);
+      console.log(`🌐 Health check: http://localhost:${PORT}/api/users`);
+    });
+  } catch (error) {
+    console.error('❌ Failed to start server:', error.message);
+    process.exit(1);
+  }
+};
 
-mongoose.set('strictQuery', true);
-mongoose.connect(mongoUri, {
-  serverSelectionTimeoutMS: 10000
-}).then(() => {
-  console.log('✅ Connected to MongoDB');
-  app.listen(PORT, () => {
-    console.log(`🚀 Server is running on port ${PORT}`);
-    console.log(`📱 Environment: ${process.env.NODE_ENV || 'development'}`);
-    console.log(`🌐 Health check: http://localhost:${PORT}/health`);
-  });
-}).catch((err) => {
-  console.error('❌ MongoDB connection error:', err.message);
-  process.exit(1);
-});
+// Khởi động server
+startServer();
 
 module.exports = app;

@@ -1,8 +1,15 @@
 const mongoose = require('mongoose');
 
 const MatchPreferencesSchema = new mongoose.Schema({
-  ageRange: { min: Number, max: Number ,required: true, enum: {min: 13, max: 100}},
-  genders: {type: String, required: true, enum: {male: 'male', female: 'female', other: 'other'}},
+  ageRange: {
+    min: { type: Number, min: 13, max: 100 },
+    max: { type: Number, min: 13, max: 100 }
+  },
+  genders: {
+    type: String, 
+    required: true, 
+    enum: ['male', 'female', 'other']
+  },
   locales: [String],
   interests: [String]
 }, { _id: false });
@@ -13,7 +20,7 @@ const UserSchema = new mongoose.Schema({
   passwordHash: { type: String, required: true },
   avatar: String,
   gender: String,
-  birthdate: Date,
+  age: Number,
   interests: [String],
   bio: String,
   locale: String,
@@ -26,7 +33,7 @@ const UserSchema = new mongoose.Schema({
     banUntil: Date
   },
   lastActiveAt: { type: Date, index: true }
-}, { timestamps: { createdAt: 'createdAt', updatedAt: 'updatedAt' } });
+}, { collection: 'users' });
 
 module.exports = mongoose.model('User', UserSchema);
 
