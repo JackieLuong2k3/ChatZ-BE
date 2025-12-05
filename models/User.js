@@ -15,13 +15,16 @@ const MatchPreferencesSchema = new mongoose.Schema({
 }, { _id: false });
 
 const UserSchema = new mongoose.Schema({
-  username: { type: String, unique: true, index: true, required: true },
+  username: { type: String, unique: true, index: true, sparse: true },
   email: { type: String, unique: true, index: true, required: true },
-  passwordHash: { type: String, required: true },
+  passwordHash: { type: String },
+  googleId: { type: String, unique: true, index: true, sparse: true },
   avatar: String,
   gender: String,
   age: Number,
   interests: [String],
+  accessToken: String,
+  refreshToken: String,
   bio: String,
   locale: String,
   settings: {
@@ -36,4 +39,5 @@ const UserSchema = new mongoose.Schema({
 }, { collection: 'users' });
 
 module.exports = mongoose.model('User', UserSchema);
+module.exports.MatchPreferencesSchema = MatchPreferencesSchema;
 

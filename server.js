@@ -3,8 +3,14 @@ const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
 const rateLimit = require('express-rate-limit');
+const session = require('express-session');
+const passport = require('passport');
 const { connectDB } = require('./config/database');
+const { connectRedis } = require('./config/redis');
 require('dotenv').config();
+
+// Import Passport configuration
+require('./config/passport');
 
 const app = express();
 const PORT = process.env.PORT || 5000;
@@ -29,6 +35,24 @@ app.use(limiter);
 // Logging
 app.use(morgan('combined'));
 
+// Session configuration
+app.use(
+  session({
+    secret: process.env.SESSION_SECRET || process.env.JWT_SECRET || 'your-session-secret',
+    resave: false,
+    saveUninitialized: false,
+    cookie: {
+      secure: process.env.NODE_ENV === 'production',
+      httpOnly: true,
+      maxAge: 24 * 60 * 60 * 1000 // 24 hours
+    }
+  })
+);
+
+// Passport middleware
+app.use(passport.initialize());
+app.use(passport.session());
+
 // Body parsing middleware
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
@@ -49,6 +73,7 @@ app.get('/', (req, res) => {
 app.use('/api/auth', require('./routes/auth'));
 app.use('/api/users', require('./routes/users'));
 app.use('/api/notifications', require('./routes/NotificationRoute'));
+app.use('/api/queue', require('./routes/queue'));
 
 // 404 handler
 app.use('*', (req, res) => {
@@ -76,6 +101,18 @@ const startServer = async () => {
   try {
     // Kết nối đến MongoDB
     await connectDB();
+    
+    // Kết nối đến Redis
+    try {
+      await connectRedis();
+    } catch (redisError) {
+      console.warn('⚠️  Redis connection failed, queue features may not work:', redisError.message);
+      console.warn('⚠️  Make sure Redis is running or set REDIS_URL in .env');
+    }
+    
+    // Khởi động queue matcher (chạy mỗi 1 phút)
+    const { startQueueMatcher } = require('./services/queueMatcher');
+    startQueueMatcher(1);
     
     // Khởi động server
     app.listen(PORT, () => {
