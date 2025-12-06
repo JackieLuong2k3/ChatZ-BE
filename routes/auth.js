@@ -139,31 +139,4 @@ router.post('/google', async (req, res) => {
   }
 });
 
-// GET /api/auth/google - Initiate Google OAuth flow (alternative method)
-router.get('/google', passport.authenticate('google', {
-  scope: ['profile', 'email']
-}));
-
-// GET /api/auth/google/callback - Handle Google OAuth callback
-router.get('/google/callback',
-  passport.authenticate('google', { session: false, failureRedirect: '/login' }),
-  async (req, res) => {
-    try {
-      const user = req.user;
-      
-      // Generate tokens
-      const { accessToken, refreshToken } = generateTokens(user);
-
-      // Redirect to frontend with tokens
-      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
-      res.redirect(`${frontendUrl}/auth/callback?token=${accessToken}&refreshToken=${refreshToken}&user=${encodeURIComponent(JSON.stringify({ id: user._id, username: user.username, email: user.email, avatar: user.avatar }))}`);
-    } catch (error) {
-      console.error('Google callback error:', error);
-      const frontendUrl = process.env.FRONTEND_URL || 'http://localhost:3000';
-      res.redirect(`${frontendUrl}/login?error=google_auth_failed`);
-    }
-  }
-);
-
-
 module.exports = router;
