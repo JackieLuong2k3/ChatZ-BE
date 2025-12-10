@@ -34,13 +34,13 @@ router.post('/register', async (req, res) => {
     const user = await User.create({ username, email, passwordHash, lastActiveAt: new Date() });
 
     const { accessToken, refreshToken } = generateTokens(user);
-
     res.status(201).json({
       message: 'User registered successfully',
       token: accessToken,
       refreshToken,
       user: { id: user._id, username: user.username, email: user.email }
     });
+
   } catch (error) {
     res.status(500).json({ error: 'Registration failed', message: error.message });
   }
@@ -106,6 +106,8 @@ router.post('/google', async (req, res) => {
       $or: [{ googleId }, { email }] 
     });
 
+    let isNewUser = false;
+
     if (user) {
       // Update user if they logged in with email before
       if (!user.googleId) {
@@ -123,15 +125,25 @@ router.post('/google', async (req, res) => {
         avatar: picture,
         lastActiveAt: new Date()
       });
+      isNewUser = true;
     }
 
     const { accessToken, refreshToken } = generateTokens(user);
+
+    // Reload user to get full data including settings
+    user = await User.findById(user._id);
 
     res.json({
       message: 'Google login successful',
       token: accessToken,
       refreshToken,
-      user: { id: user._id, username: user.username, email: user.email, avatar: user.avatar }
+      user: { 
+        id: user._id, 
+        username: user.username, 
+        email: user.email, 
+        avatar: user.avatar,
+        settings: user.settings || null
+      }
     });
   } catch (error) {
     console.error('Google login error:', error);
