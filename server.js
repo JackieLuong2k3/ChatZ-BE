@@ -19,11 +19,24 @@ const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
     origin: process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:3000'],
-    credentials: true
-  }
+    credentials: true,
+    methods: ['GET', 'POST']
+  },
+  transports: ['websocket', 'polling'],
+  allowEIO3: true
 });
 
+// PORT must be set by deployment platform (e.g., Railway, Render, etc.)
+// Default to 5000 for local development
 const PORT = process.env.PORT || 5000;
+
+// Ensure PORT is a number
+const portNumber = typeof PORT === 'string' ? parseInt(PORT, 10) : PORT;
+
+if (!portNumber || isNaN(portNumber)) {
+  console.error('❌ Invalid PORT:', PORT);
+  process.exit(1);
+}
 
 // Security middleware
 app.use(helmet());
@@ -66,6 +79,15 @@ app.use(passport.session());
 // Body parsing middleware
 app.use(express.json({ limit: '10mb' }));
 app.use(express.urlencoded({ extended: true, limit: '10mb' }));
+
+// Health check route (required for deployment platforms)
+app.get('/health', (req, res) => {
+  res.status(200).json({
+    status: 'ok',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime()
+  });
+});
 
 // Routes
 app.get('/', (req, res) => {
@@ -146,11 +168,13 @@ const startServer = async () => {
     startQueueMatcher(1);
     
     // Khởi động server với Socket.IO
-    server.listen(PORT, () => {
-      console.log(`🚀 Server is running on port ${PORT}`);
+    // Bind to 0.0.0.0 to accept connections from all network interfaces (required for deployment)
+    server.listen(portNumber, '0.0.0.0', () => {
+      console.log(`🚀 Server is running on port ${portNumber}`);
       console.log(`📱 Environment: ${process.env.NODE_ENV || 'development'}`);
-      console.log(`🌐 Health check: http://localhost:${PORT}/api/users`);
+      console.log(`🌐 Health check: http://0.0.0.0:${portNumber}/health`);
       console.log(`🔌 Socket.IO server is ready`);
+      console.log(`📡 Listening on 0.0.0.0:${portNumber}`);
     });
   } catch (error) {
     console.error('❌ Failed to start server:', error.message);
