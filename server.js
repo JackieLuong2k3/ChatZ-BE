@@ -1,4 +1,6 @@
 const express = require('express');
+const http = require('http');
+const { Server } = require('socket.io');
 const cors = require('cors');
 const helmet = require('helmet');
 const morgan = require('morgan');
@@ -13,6 +15,14 @@ require('dotenv').config();
 require('./config/passport');
 
 const app = express();
+const server = http.createServer(app);
+const io = new Server(server, {
+  cors: {
+    origin: process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:3000'],
+    credentials: true
+  }
+});
+
 const PORT = process.env.PORT || 5000;
 
 // Security middleware
@@ -75,6 +85,26 @@ app.use('/api/users', require('./routes/users'));
 app.use('/api/notifications', require('./routes/NotificationRoute'));
 app.use('/api/queue', require('./routes/queue'));
 app.use('/api/rooms', require('./routes/room.route'));
+app.use('/api/chat', require('./routes/chat'));
+
+// Socket.IO middleware và handlers
+const socketAuth = require('./middleware/socketAuth');
+const chatSocketHandler = require('./services/chatSocketHandler');
+
+io.use(socketAuth);
+
+io.on('connection', (socket) => {
+  console.log(`✅ User connected: ${socket.userId}`);
+  
+  chatSocketHandler(io, socket);
+  
+  socket.on('disconnect', () => {
+    console.log(`❌ User disconnected: ${socket.userId}`);
+  });
+});
+
+// Export io để sử dụng trong các routes khác
+app.set('io', io);
 
 // 404 handler
 app.use('*', (req, res) => {
@@ -115,11 +145,12 @@ const startServer = async () => {
     const { startQueueMatcher } = require('./services/queueMatcher');
     startQueueMatcher(1);
     
-    // Khởi động server
-    app.listen(PORT, () => {
+    // Khởi động server với Socket.IO
+    server.listen(PORT, () => {
       console.log(`🚀 Server is running on port ${PORT}`);
       console.log(`📱 Environment: ${process.env.NODE_ENV || 'development'}`);
       console.log(`🌐 Health check: http://localhost:${PORT}/api/users`);
+      console.log(`🔌 Socket.IO server is ready`);
     });
   } catch (error) {
     console.error('❌ Failed to start server:', error.message);
