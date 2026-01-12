@@ -155,12 +155,12 @@ const startServer = async () => {
     // Kết nối đến MongoDB
     await connectDB();
     
-    // Kết nối đến Redis
+    // Kết nối đến Upstash Redis
     try {
       await connectRedis();
     } catch (redisError) {
-      console.warn('⚠️  Redis connection failed, queue features may not work:', redisError.message);
-      console.warn('⚠️  Make sure Redis is running or set REDIS_URL in .env');
+      console.warn('⚠️  Upstash Redis connection failed, queue features may not work:', redisError.message);
+      console.warn('⚠️  Make sure UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN are set in .env');
     }
     
     // Khởi động queue matcher (chạy mỗi 1 phút)

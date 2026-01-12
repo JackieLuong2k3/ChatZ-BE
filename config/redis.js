@@ -1,39 +1,32 @@
-const { createClient } = require('redis');
+const { Redis } = require('@upstash/redis');
 
 let redisClient = null;
 
 /**
- * Kết nối đến Redis
+ * Kết nối đến Upstash Redis
  */
 const connectRedis = async () => {
   try {
-    const redisUrl = process.env.REDIS_URL || 'redis://localhost:6379';
-    
-    redisClient = createClient({
-      url: redisUrl
+    // Upstash Redis sử dụng REST API, không cần persistent connection
+    const upstashUrl = process.env.UPSTASH_REDIS_REST_URL;
+    const upstashToken = process.env.UPSTASH_REDIS_REST_TOKEN;
+
+    if (!upstashUrl || !upstashToken) {
+      throw new Error('UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN must be set in environment variables');
+    }
+
+    redisClient = new Redis({
+      url: upstashUrl,
+      token: upstashToken,
     });
 
-    redisClient.on('error', (err) => {
-      console.error('❌ Redis Client Error:', err);
-    });
-
-    redisClient.on('connect', () => {
-      console.log('🔄 Redis connecting...');
-    });
-
-    redisClient.on('ready', () => {
-      console.log('✅ Redis connected and ready');
-    });
-
-    redisClient.on('end', () => {
-      console.log('🔴 Redis connection ended');
-    });
-
-    await redisClient.connect();
+    // Test connection bằng cách ping
+    await redisClient.ping();
+    console.log('✅ Upstash Redis connected and ready');
 
     return redisClient;
   } catch (error) {
-    console.error('❌ Failed to connect to Redis:', error);
+    console.error('❌ Failed to connect to Upstash Redis:', error);
     throw error;
   }
 };
@@ -49,14 +42,12 @@ const getRedisClient = () => {
 };
 
 /**
- * Đóng kết nối Redis
+ * Đóng kết nối Redis (Upstash không cần đóng connection vì dùng REST API)
  */
 const disconnectRedis = async () => {
-  if (redisClient) {
-    await redisClient.quit();
-    redisClient = null;
-    console.log('🔴 Redis disconnected');
-  }
+  // Upstash Redis sử dụng REST API, không có persistent connection để đóng
+  redisClient = null;
+  console.log('🔴 Upstash Redis client cleared');
 };
 
 module.exports = {
