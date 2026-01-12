@@ -74,6 +74,7 @@ app.use('/api/auth', require('./routes/auth'));
 app.use('/api/users', require('./routes/users'));
 app.use('/api/notifications', require('./routes/NotificationRoute'));
 app.use('/api/queue', require('./routes/queue'));
+app.use('/api/rooms', require('./routes/room.route'));
 
 // 404 handler
 app.use('*', (req, res) => {

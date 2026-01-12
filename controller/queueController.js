@@ -172,13 +172,14 @@ const tryMatchAgain = async (req, res) => {
       });
     }
 
-    const Queue = require('../models/Queue');
-    const queue = await Queue.findOne({
-      userId,
-      status: 'queued'
-    });
-
-    if (!queue) {
+    // Lấy queue trực tiếp từ Redis để có đầy đủ thông tin
+    const { getRedisClient } = require('../config/redis');
+    const { getQueueKey } = queueService;
+    const redis = getRedisClient();
+    const queueKey = getQueueKey(userId);
+    const queueData = await redis.get(queueKey);
+    
+    if (!queueData) {
       return res.status(404).json({
         success: false,
         error: 'Not in queue',
@@ -186,7 +187,69 @@ const tryMatchAgain = async (req, res) => {
       });
     }
 
-    const result = await queueService.tryMatch(queue);
+    const queueFromRedis = JSON.parse(queueData);
+
+    // Kiểm tra status: nếu đã matched thì trả về thông tin match
+    if (queueFromRedis.status === 'matched') {
+      // Lấy thông tin room và matchedUser từ queue data
+      const roomService = require('../services/room.service');
+      let roomInfo = null;
+      let matchedUserInfo = queueFromRedis.matchedUser;
+
+      // Nếu có roomId trong queue, lấy thông tin room
+      if (queueFromRedis.room?._id) {
+        try {
+          const room = await roomService.getRoomById(queueFromRedis.room._id, userId);
+          if (room) {
+            roomInfo = {
+              _id: room._id,
+              participants: room.participants,
+              status: room.status,
+              type: room.type,
+              createdAt: room.createdAt
+            };
+            // Lấy matchedUser từ room nếu chưa có
+            if (!matchedUserInfo) {
+              matchedUserInfo = await roomService.getMatchedUser(room, userId);
+            }
+          }
+        } catch (roomError) {
+          console.error('Error getting room info:', roomError);
+        }
+      }
+
+      return res.status(200).json({
+        success: true,
+        data: {
+          success: true,
+          room: roomInfo || queueFromRedis.room,
+          matchedUser: matchedUserInfo || queueFromRedis.matchedUser
+        },
+        message: 'Bạn đã match thành công rồi'
+      });
+    }
+
+    // Chỉ cho phép match nếu status là 'queued'
+    if (queueFromRedis.status !== 'queued') {
+      return res.status(404).json({
+        success: false,
+        error: 'Not in queue',
+        message: 'Bạn không có trong hàng đợi'
+      });
+    }
+
+    // Convert queue từ Redis format sang format mà tryMatch cần
+    const queueForMatch = {
+      userId: queueFromRedis.userId || userId,
+      status: queueFromRedis.status,
+      preferences: queueFromRedis.preferences,
+      region: queueFromRedis.region,
+      createdAt: queueFromRedis.createdAt,
+      expiresAt: queueFromRedis.expiresAt,
+      _id: queueFromRedis.userId || userId
+    };
+
+    const result = await queueService.tryMatch(queueForMatch);
 
     if (result.success) {
       res.status(200).json({
@@ -212,10 +275,102 @@ const tryMatchAgain = async (req, res) => {
   }
 };
 
+/**
+ * Lấy tất cả queues từ Redis
+ * GET /api/queue/all
+ */
+const getAllQueues = async (req, res) => {
+  try {
+    // Có thể thêm admin check ở đây nếu cần
+    // const userId = req.user?.sub || req.user?.id;
+    // if (!userId) {
+    //   return res.status(401).json({
+    //     success: false,
+    //     error: 'Unauthorized',
+    //     message: 'Vui lòng đăng nhập'
+    //   });
+    // }
+
+    const queues = await queueService.getAllQueues();
+
+    res.status(200).json({
+      success: true,
+      data: {
+        queues,
+        count: queues.length
+      },
+      message: 'Lấy danh sách queue thành công'
+    });
+  } catch (error) {
+    console.error('❌ Lỗi khi lấy tất cả queues:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get all queues',
+      message: 'Không thể lấy danh sách queue',
+      details: error.message
+    });
+  }
+};
+
+/**
+ * Xóa hẳn một queue khỏi Redis (admin hoặc force delete)
+ * DELETE /api/queue/:userId
+ */
+const deleteQueue = async (req, res) => {
+  try {
+    const { userId } = req.params;
+    const currentUserId = req.user?.sub || req.user?.id;
+
+    if (!userId) {
+      return res.status(400).json({
+        success: false,
+        error: 'Missing userId',
+        message: 'Thiếu userId'
+      });
+    }
+
+    // Kiểm tra quyền: chỉ cho phép xóa queue của chính mình hoặc admin
+    // Có thể thêm admin check ở đây
+    // if (userId !== currentUserId && !isAdmin) {
+    //   return res.status(403).json({
+    //     success: false,
+    //     error: 'Forbidden',
+    //     message: 'Bạn không có quyền xóa queue này'
+    //   });
+    // }
+
+    const queue = await queueService.deleteQueue(userId);
+
+    if (!queue) {
+      return res.status(404).json({
+        success: false,
+        error: 'Queue not found',
+        message: 'Không tìm thấy queue'
+      });
+    }
+
+    res.status(200).json({
+      success: true,
+      data: queue,
+      message: 'Đã xóa queue thành công'
+    });
+  } catch (error) {
+    console.error('❌ Lỗi khi xóa queue:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to delete queue',
+      message: 'Không thể xóa queue',
+      details: error.message
+    });
+  }
+};
+
 module.exports = {
   joinQueue,
   leaveQueue,
   getQueueStatus,
-  tryMatchAgain
+  tryMatchAgain,
+  getAllQueues,
+  deleteQueue
 };
 

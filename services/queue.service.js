@@ -19,44 +19,74 @@ const checkMatchCompatibility = (user1, user2, queue1, queue2) => {
   const prefs2 = queue2.preferences;
 
   // Kiểm tra gender preference
-  const user1WantsGender = prefs1.genders;
-  const user2Gender = user2.gender;
+  const user1WantsGender = prefs1?.genders;
+  const user2Gender = user2?.gender;
   
-  const user2WantsGender = prefs2.genders;
-  const user1Gender = user1.gender;
+  const user2WantsGender = prefs2?.genders;
+  const user1Gender = user1?.gender;
+
+  // Debug logging
+  console.log(`🔍 Checking compatibility:`);
+  console.log(`  User1 (${user1.username || user1._id}): wants ${user1WantsGender}, has gender ${user1Gender}, age ${user1.age}`);
+  console.log(`  User2 (${user2.username || user2._id}): wants ${user2WantsGender}, has gender ${user2Gender}, age ${user2.age}`);
 
   // Kiểm tra gender compatibility
-  if (user1WantsGender && user1WantsGender !== user2Gender) {
+  // Chỉ kiểm tra nếu cả 2 đều có thông tin
+  if (user1WantsGender && user2Gender) {
+    if (user1WantsGender !== user2Gender) {
+      console.log(`  ❌ Gender mismatch: User1 wants ${user1WantsGender} but User2 is ${user2Gender}`);
+    return false;
+    }
+  }
+  if (user2WantsGender && user1Gender) {
+    if (user2WantsGender !== user1Gender) {
+      console.log(`  ❌ Gender mismatch: User2 wants ${user2WantsGender} but User1 is ${user1Gender}`);
     return false;
   }
-  if (user2WantsGender && user2WantsGender !== user1Gender) {
-    return false;
+  }
+  
+  // Nếu user không có gender nhưng có preference, bỏ qua (cho phép match)
+  if (user1WantsGender && !user2Gender) {
+    console.log(`  ⚠️  User2 không có gender, bỏ qua kiểm tra gender`);
+  }
+  if (user2WantsGender && !user1Gender) {
+    console.log(`  ⚠️  User1 không có gender, bỏ qua kiểm tra gender`);
   }
 
-  // Kiểm tra age range
-  if (prefs1.ageRange && user2.age) {
+  // Kiểm tra age range (chỉ kiểm tra nếu cả 2 đều có thông tin)
+  if (prefs1?.ageRange && user2.age) {
     if (user2.age < prefs1.ageRange.min || user2.age > prefs1.ageRange.max) {
+      console.log(`  ❌ Age mismatch: User1 wants ${prefs1.ageRange.min}-${prefs1.ageRange.max} but User2 is ${user2.age}`);
       return false;
     }
+  } else if (prefs1?.ageRange && !user2.age) {
+    console.log(`  ⚠️  User2 không có age, bỏ qua kiểm tra age range`);
   }
-  if (prefs2.ageRange && user1.age) {
+  
+  if (prefs2?.ageRange && user1.age) {
     if (user1.age < prefs2.ageRange.min || user1.age > prefs2.ageRange.max) {
+      console.log(`  ❌ Age mismatch: User2 wants ${prefs2.ageRange.min}-${prefs2.ageRange.max} but User1 is ${user1.age}`);
       return false;
     }
+  } else if (prefs2?.ageRange && !user1.age) {
+    console.log(`  ⚠️  User1 không có age, bỏ qua kiểm tra age range`);
   }
 
   // Kiểm tra locale (nếu có)
-  if (prefs1.locales && prefs1.locales.length > 0 && user2.locale) {
+  if (prefs1?.locales && prefs1.locales.length > 0 && user2.locale) {
     if (!prefs1.locales.includes(user2.locale)) {
+      console.log(`  ❌ Locale mismatch: User1 wants ${prefs1.locales.join(', ')} but User2 is ${user2.locale}`);
       return false;
     }
   }
-  if (prefs2.locales && prefs2.locales.length > 0 && user1.locale) {
+  if (prefs2?.locales && prefs2.locales.length > 0 && user1.locale) {
     if (!prefs2.locales.includes(user1.locale)) {
+      console.log(`  ❌ Locale mismatch: User2 wants ${prefs2.locales.join(', ')} but User1 is ${user1.locale}`);
       return false;
     }
   }
 
+  console.log(`  ✅ Compatibility check passed!`);
   return true;
 };
 
@@ -123,15 +153,24 @@ const findMatch = async (currentQueue) => {
     // Shuffle để random
     const shuffled = otherQueues.sort(() => Math.random() - 0.5);
 
+    console.log(`🔎 Finding match for user ${currentUser.username || currentUser._id} (${currentQueue.userId})`);
+    console.log(`   Checking ${shuffled.length} other queues...`);
+
     for (const otherQueue of shuffled) {
       const otherUser = await User.findById(otherQueue.userId);
       
-      if (!otherUser) continue;
+      if (!otherUser) {
+        console.log(`   ⚠️  User ${otherQueue.userId} not found in database`);
+        continue;
+      }
+
+      console.log(`   👤 Checking with user ${otherUser.username || otherUser._id}...`);
 
       // Kiểm tra user khác có bị ban không
       if (otherUser.safety?.isBanned) {
         const banUntil = otherUser.safety.banUntil;
         if (banUntil && new Date() < banUntil) {
+          console.log(`   ⛔ User ${otherUser._id} is banned`);
           continue;
         }
       }
@@ -145,12 +184,16 @@ const findMatch = async (currentQueue) => {
       });
 
       if (isBlocked) {
+        console.log(`   🚫 Users are blocked`);
         continue;
       }
 
       // Kiểm tra compatibility
       if (checkMatchCompatibility(currentUser, otherUser, currentQueue, otherQueue)) {
+        console.log(`   ✅ Match found!`);
         return { matchedQueue: otherQueue, matchedUser: otherUser };
+      } else {
+        console.log(`   ❌ Not compatible`);
       }
     }
 
@@ -174,6 +217,7 @@ const createRoomForMatch = async (user1Id, user2Id) => {
     });
 
     if (existingRoom) {
+      console.log(`ℹ️  Room already exists: ${existingRoom._id} for users ${user1Id} and ${user2Id}`);
       return existingRoom;
     }
 
@@ -184,9 +228,10 @@ const createRoomForMatch = async (user1Id, user2Id) => {
       type: 'one_to_one'
     });
 
+    console.log(`✅ Room created successfully: ${room._id} for users ${user1Id} and ${user2Id}`);
     return room;
   } catch (error) {
-    console.error('Error creating room:', error);
+    console.error('❌ Error creating room:', error);
     throw error;
   }
 };
@@ -257,29 +302,76 @@ const tryMatch = async (queue) => {
     if (match) {
       const { matchedQueue, matchedUser } = match;
       
-      // Tạo room
-      const room = await createRoomForMatch(queue.userId, matchedUser._id);
+      // Tạo room - chỉ cập nhật status queue khi tạo room thành công
+      let room;
+      try {
+        room = await createRoomForMatch(queue.userId, matchedUser._id);
+      } catch (roomError) {
+        console.error('❌ Error creating room in tryMatch:', roomError);
+        throw roomError; // Nếu tạo room thất bại, không cập nhật status queue
+      }
 
-      // Cập nhật status của cả 2 queue trong Redis
+      // Chỉ cập nhật status queue khi tạo room thành công
+      if (room) {
       const redis = getRedisClient();
       
-      // Cập nhật queue hiện tại
+        // Chuẩn bị thông tin room và participants
+        const roomParticipants = Array.isArray(room.participants) 
+          ? room.participants.map(p => (typeof p === 'object' && p._id ? p._id.toString() : p.toString()))
+          : [];
+        const roomInfo = {
+          _id: room._id.toString(),
+          participants: roomParticipants
+        };
+        
+        // Lấy thông tin user hiện tại (matchedUser của user kia)
+        const currentUser = await User.findById(queue.userId).select('username avatar age gender');
+        
+        // Cập nhật queue hiện tại thành 'matched' (không xóa, chỉ đổi status)
+        // Lưu thông tin room và matchedUser vào queue để có thể query sau
       const queueKey1 = getQueueKey(queue.userId);
-      const queueData1 = { ...queue, status: 'matched' };
+        const queueData1 = { 
+          ...queue, 
+          status: 'matched',
+          room: roomInfo,
+          matchedUser: {
+            _id: matchedUser._id.toString(),
+            username: matchedUser.username,
+            avatar: matchedUser.avatar,
+            age: matchedUser.age,
+            gender: matchedUser.gender
+          }
+        };
       const ttl1 = await redis.ttl(queueKey1);
       if (ttl1 > 0) {
         await redis.setEx(queueKey1, ttl1, JSON.stringify(queueData1));
       }
+        // Xóa khỏi set vì không còn trong queue để match nữa
       await redis.sRem(QUEUE_SET_KEY, queue.userId.toString());
+        console.log(`✅ Đã cập nhật queue status thành 'matched' cho user ${queue.userId}`);
 
-      // Cập nhật queue đã match
+        // Cập nhật queue đã match thành 'matched' (không xóa, chỉ đổi status)
+        // Lưu thông tin room và matchedUser vào queue
       const queueKey2 = getQueueKey(matchedQueue.userId);
-      const queueData2 = { ...matchedQueue, status: 'matched' };
+        const queueData2 = { 
+          ...matchedQueue, 
+          status: 'matched',
+          room: roomInfo,
+          matchedUser: currentUser ? {
+            _id: currentUser._id.toString(),
+            username: currentUser.username,
+            avatar: currentUser.avatar,
+            age: currentUser.age,
+            gender: currentUser.gender
+          } : null
+        };
       const ttl2 = await redis.ttl(queueKey2);
       if (ttl2 > 0) {
         await redis.setEx(queueKey2, ttl2, JSON.stringify(queueData2));
       }
+        // Xóa khỏi set vì không còn trong queue để match nữa
       await redis.sRem(QUEUE_SET_KEY, matchedQueue.userId.toString());
+        console.log(`✅ Đã cập nhật queue status thành 'matched' cho user ${matchedQueue.userId}`);
 
       return {
         success: true,
@@ -292,6 +384,10 @@ const tryMatch = async (queue) => {
           gender: matchedUser.gender
         }
       };
+      } else {
+        console.error('❌ Room creation returned null/undefined');
+        return { success: false, message: 'Failed to create room' };
+      }
     }
 
     return { success: false, message: 'No match found' };
@@ -302,7 +398,7 @@ const tryMatch = async (queue) => {
 };
 
 /**
- * Xóa user khỏi queue
+ * Xóa user khỏi queue (xóa hoàn toàn khỏi Redis)
  */
 const removeFromQueue = async (userId) => {
   try {
@@ -313,17 +409,20 @@ const removeFromQueue = async (userId) => {
     
     if (queueData) {
       const queue = JSON.parse(queueData);
-      queue.status = 'cancelled';
       
-      // Cập nhật status và xóa khỏi set
-      const ttl = await redis.ttl(queueKey);
-      if (ttl > 0) {
-        await redis.setEx(queueKey, ttl, JSON.stringify(queue));
-      }
+      // Xóa key khỏi Redis hoàn toàn
+      await redis.del(queueKey);
+      
+      // Xóa khỏi set
       await redis.sRem(QUEUE_SET_KEY, userId.toString());
+      
+      console.log(`✅ Đã xóa queue khỏi Redis cho user ${userId}`);
       
       return queue;
     }
+
+    // Nếu không có trong Redis, vẫn thử xóa khỏi set (cleanup)
+    await redis.sRem(QUEUE_SET_KEY, userId.toString());
 
     return null;
   } catch (error) {
@@ -404,13 +503,49 @@ const getQueueStatus = async (userId) => {
   }
 };
 
+/**
+ * Xóa hẳn một queue khỏi Redis (dùng cho admin hoặc force delete)
+ */
+const deleteQueue = async (userId) => {
+  try {
+    const redis = getRedisClient();
+    const queueKey = getQueueKey(userId);
+    
+    // Kiểm tra queue có tồn tại không
+    const queueData = await redis.get(queueKey);
+    
+    if (!queueData) {
+      // Vẫn thử xóa khỏi set để cleanup
+      await redis.sRem(QUEUE_SET_KEY, userId.toString());
+      return null;
+    }
+    
+    const queue = JSON.parse(queueData);
+    
+    // Xóa key khỏi Redis hoàn toàn
+    await redis.del(queueKey);
+    
+    // Xóa khỏi set
+    await redis.sRem(QUEUE_SET_KEY, userId.toString());
+    
+    console.log(`✅ Đã xóa hẳn queue khỏi Redis cho user ${userId}`);
+    
+    return queue;
+  } catch (error) {
+    console.error('Error deleting queue:', error);
+    throw error;
+  }
+};
+
 module.exports = {
   addToQueue,
   removeFromQueue,
+  deleteQueue,
   tryMatch,
   findMatch,
   createRoomForMatch,
   cleanupExpiredQueues,
   getQueueStatus,
+  getAllQueues,
   getQueueKey
 };

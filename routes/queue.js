@@ -4,7 +4,9 @@ const {
   joinQueue,
   leaveQueue,
   getQueueStatus,
-  tryMatchAgain
+  tryMatchAgain,
+  getAllQueues,
+  deleteQueue
 } = require('../controller/queueController');
 
 const router = express.Router();
@@ -37,6 +39,20 @@ router.get('/status', authenticateToken, getQueueStatus);
  * @access Private
  */
 router.post('/match', authenticateToken, tryMatchAgain);
+
+/**
+ * @route GET /api/queue/all
+ * @desc Lấy tất cả queues từ Redis
+ * @access Private
+ */
+router.get('/all', authenticateToken, getAllQueues);
+
+/**
+ * @route DELETE /api/queue/delete/:userId
+ * @desc Xóa hẳn một queue khỏi Redis (admin hoặc force delete)
+ * @access Private
+ */
+router.delete('/delete/:userId', authenticateToken, deleteQueue);
 
 module.exports = router;
 

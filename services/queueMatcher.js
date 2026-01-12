@@ -22,13 +22,7 @@ const getAllQueues = async () => {
       const queueData = await redis.get(getQueueKey(userId));
       if (queueData) {
         const queue = JSON.parse(queueData);
-        // Chỉ lấy queue đang chờ và chưa hết hạn
-        if (queue.status === 'queued') {
-          const expiresAt = new Date(queue.expiresAt);
-          if (expiresAt > new Date()) {
-            queues.push({ ...queue, _id: queue.userId });
-          }
-        }
+        queues.push({ ...queue, _id: queue.userId });
       } else {
         // Xóa khỏi set nếu key không tồn tại (đã hết hạn)
         await redis.sRem(QUEUE_SET_KEY, userId);
@@ -72,6 +66,7 @@ const runQueueMatcher = async () => {
       }
 
       try {
+        console.log(`\n🎯 Thử match user ${queue.userId}...`);
         const result = await queueService.tryMatch(queue);
         
         if (result.success) {
@@ -82,9 +77,12 @@ const runQueueMatcher = async () => {
             processedUserIds.add(result.matchedUser._id.toString());
           }
           console.log(`✅ Đã match: ${queue.userId} với ${result.matchedUser?._id}`);
+        } else {
+          console.log(`❌ Không tìm thấy match cho user ${queue.userId}: ${result.message || 'No match found'}`);
         }
       } catch (error) {
         console.error(`❌ Lỗi khi match queue ${queue.userId}:`, error.message);
+        console.error(error.stack);
       }
     }
 
