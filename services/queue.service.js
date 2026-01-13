@@ -12,6 +12,33 @@ const QUEUE_SET_KEY = 'queue:set'; // Set chứa tất cả userId đang trong q
 const getQueueKey = (userId) => `${QUEUE_KEY_PREFIX}${userId}`;
 
 /**
+ * Parse queue data từ Redis (xử lý cả string JSON và object)
+ * Upstash Redis có thể tự động deserialize JSON, nên cần kiểm tra kiểu dữ liệu
+ */
+const parseQueueData = (queueData) => {
+  if (!queueData) return null;
+  
+  // Nếu đã là object, trả về trực tiếp
+  if (typeof queueData === 'object' && !Array.isArray(queueData)) {
+    return queueData;
+  }
+  
+  // Nếu là string, parse JSON
+  if (typeof queueData === 'string') {
+    try {
+      return JSON.parse(queueData);
+    } catch (error) {
+      console.error('Error parsing queue data:', error);
+      console.error('Queue data:', queueData);
+      throw error;
+    }
+  }
+  
+  // Trường hợp khác, throw error
+  throw new Error(`Invalid queue data type: ${typeof queueData}`);
+};
+
+/**
  * Kiểm tra xem 2 user có match với nhau không dựa trên preferences
  */
 const checkMatchCompatibility = (user1, user2, queue1, queue2) => {
@@ -106,7 +133,7 @@ const getAllQueues = async () => {
     for (const userId of queueKeys) {
       const queueData = await redis.get(getQueueKey(userId));
       if (queueData) {
-        queues.push(JSON.parse(queueData));
+        queues.push(parseQueueData(queueData));
       } else {
         // Xóa khỏi set nếu key không tồn tại
         await redis.sRem(QUEUE_SET_KEY, userId);
@@ -408,7 +435,7 @@ const removeFromQueue = async (userId) => {
     const queueData = await redis.get(queueKey);
     
     if (queueData) {
-      const queue = JSON.parse(queueData);
+      const queue = parseQueueData(queueData);
       
       // Xóa key khỏi Redis hoàn toàn
       await redis.del(queueKey);
@@ -453,7 +480,7 @@ const cleanupExpiredQueues = async () => {
         // Kiểm tra status
         const queueData = await redis.get(queueKey);
         if (queueData) {
-          const queue = JSON.parse(queueData);
+          const queue = parseQueueData(queueData);
           if (queue.status !== 'queued') {
             await redis.sRem(QUEUE_SET_KEY, userId);
             cleanedCount++;
@@ -482,7 +509,7 @@ const getQueueStatus = async (userId) => {
       return null;
     }
 
-    const queue = JSON.parse(queueData);
+    const queue = parseQueueData(queueData);
     
     // Populate user info từ MongoDB
     const user = await User.findById(userId).select('username avatar age gender');
@@ -520,7 +547,7 @@ const deleteQueue = async (userId) => {
       return null;
     }
     
-    const queue = JSON.parse(queueData);
+    const queue = parseQueueData(queueData);
     
     // Xóa key khỏi Redis hoàn toàn
     await redis.del(queueKey);
@@ -547,5 +574,6 @@ module.exports = {
   cleanupExpiredQueues,
   getQueueStatus,
   getAllQueues,
-  getQueueKey
+  getQueueKey,
+  parseQueueData
 };

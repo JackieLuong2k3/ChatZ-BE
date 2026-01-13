@@ -1,6 +1,6 @@
 const queueService = require('./queue.service');
 const { getRedisClient } = require('../config/redis');
-const { getQueueKey } = queueService;
+const { getQueueKey, parseQueueData } = queueService;
 
 const QUEUE_SET_KEY = 'queue:set';
 
@@ -21,7 +21,7 @@ const getAllQueues = async () => {
     for (const userId of queueKeys) {
       const queueData = await redis.get(getQueueKey(userId));
       if (queueData) {
-        const queue = JSON.parse(queueData);
+        const queue = parseQueueData(queueData);
         queues.push({ ...queue, _id: queue.userId });
       } else {
         // Xóa khỏi set nếu key không tồn tại (đã hết hạn)
