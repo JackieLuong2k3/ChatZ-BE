@@ -1,6 +1,31 @@
 const { Redis } = require('@upstash/redis');
 
 let redisClient = null;
+let wrappedClient = null;
+
+/**
+ * Tạo wrapper để tương thích với Redis client API (camelCase methods)
+ */
+const createRedisWrapper = (upstashClient) => {
+  return {
+    // Basic operations
+    get: (key) => upstashClient.get(key),
+    set: (key, value) => upstashClient.set(key, value),
+    setEx: (key, seconds, value) => upstashClient.set(key, value, { ex: seconds }),
+    del: (key) => upstashClient.del(key),
+    exists: (key) => upstashClient.exists(key),
+    ttl: (key) => upstashClient.ttl(key),
+    ping: () => upstashClient.ping(),
+    
+    // Set operations - map camelCase to lowercase
+    sMembers: (key) => upstashClient.smembers(key),
+    sAdd: (key, ...members) => upstashClient.sadd(key, ...members),
+    sRem: (key, ...members) => upstashClient.srem(key, ...members),
+    
+    // Expose original client for any other methods
+    _upstash: upstashClient
+  };
+};
 
 /**
  * Kết nối đến Upstash Redis
@@ -24,7 +49,10 @@ const connectRedis = async () => {
     await redisClient.ping();
     console.log('✅ Upstash Redis connected and ready');
 
-    return redisClient;
+    // Tạo wrapper để tương thích với API hiện tại
+    wrappedClient = createRedisWrapper(redisClient);
+
+    return wrappedClient;
   } catch (error) {
     console.error('❌ Failed to connect to Upstash Redis:', error);
     throw error;
@@ -32,13 +60,13 @@ const connectRedis = async () => {
 };
 
 /**
- * Lấy Redis client
+ * Lấy Redis client (wrapper)
  */
 const getRedisClient = () => {
-  if (!redisClient) {
+  if (!wrappedClient) {
     throw new Error('Redis client not initialized. Call connectRedis() first.');
   }
-  return redisClient;
+  return wrappedClient;
 };
 
 /**
@@ -47,6 +75,7 @@ const getRedisClient = () => {
 const disconnectRedis = async () => {
   // Upstash Redis sử dụng REST API, không có persistent connection để đóng
   redisClient = null;
+  wrappedClient = null;
   console.log('🔴 Upstash Redis client cleared');
 };
 
