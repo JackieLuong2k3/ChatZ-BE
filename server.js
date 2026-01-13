@@ -18,7 +18,7 @@ const app = express();
 const server = http.createServer(app);
 const io = new Server(server, {
   cors: {
-    origin: process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:3000'],
+    origin: process.env.FRONTEND_URL?.split(',') || ['http://localhost:3000'],
     credentials: true,
     methods: ['GET', 'POST']
   },
@@ -43,7 +43,7 @@ app.use(helmet());
 
 // CORS configuration
 app.use(cors({
-  origin: process.env.ALLOWED_ORIGINS?.split(',') || ['http://localhost:3000'],
+  origin: process.env.FRONTEND_URL?.split(',') || ['http://localhost:3000'],
   credentials: true
 }));
 
