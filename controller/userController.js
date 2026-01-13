@@ -288,10 +288,34 @@ const getProfileByUserId = async (req, res) => {
   }
 };
 
+/**
+ * Lấy tất cả người dùng
+ * GET /api/users/all
+ */
+const getAllUsers = async (req, res) => {
+  try {
+    const users = await User.find();
+    res.status(200).json({
+      success: true,
+      data: users,
+      message: 'Lấy tất cả người dùng thành công'
+    });
+  } catch (error) {
+    console.error('❌ Lỗi khi lấy tất cả người dùng:', error);
+    res.status(500).json({
+      success: false,
+      error: 'Failed to get all users',
+      message: 'Không thể lấy tất cả người dùng',
+      details: error.message
+    });
+  }
+};
+
 module.exports = {
   updatePreferences,
   getPreferences,
   getProfileByUserId,
-  updateProfile
+  updateProfile,
+  getAllUsers
 };
 

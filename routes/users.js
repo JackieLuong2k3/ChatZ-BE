@@ -3,7 +3,7 @@ const { authenticateToken } = require('../middleware/auth');
 const User = require('../models/User');
 const Block = require('../models/Block');
 const Report = require('../models/Report');
-const { updatePreferences, getPreferences, getProfileByUserId, updateProfile } = require('../controller/userController');
+const { updatePreferences, getPreferences, getProfileByUserId, updateProfile, getAllUsers } = require('../controller/userController');
 const router = express.Router();
 
 
@@ -38,5 +38,7 @@ router.get('/profile/:userId', authenticateToken, getProfileByUserId);
 
 // update profile
 router.put('/profile', authenticateToken, updateProfile);
+// get all users
+router.get('/', getAllUsers);
 
 module.exports = router;
