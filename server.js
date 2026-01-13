@@ -38,48 +38,24 @@ if (!portNumber || isNaN(portNumber)) {
   process.exit(1);
 }
 
-// CORS configuration - MUST be before other middleware
+// CORS configuration - Simple and straightforward
 const allowedOrigins = process.env.FRONTEND_URL?.split(',').map(url => url.trim()) || ['http://localhost:3000'];
 
-// Log allowed origins for debugging
-console.log('🌐 Allowed CORS origins:', allowedOrigins);
-
 app.use(cors({
-  origin: function (origin, callback) {
-    // Allow requests with no origin (like mobile apps or curl requests)
-    if (!origin) return callback(null, true);
-    
-    if (allowedOrigins.indexOf(origin) !== -1 || allowedOrigins.includes('*')) {
-      callback(null, true);
-    } else {
-      console.warn('⚠️  CORS blocked origin:', origin);
-      callback(new Error('Not allowed by CORS'));
-    }
-  },
-  credentials: true,
-  methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS', 'PATCH'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-Requested-With', 'Accept', 'Origin'],
-  exposedHeaders: ['Content-Range', 'X-Content-Range'],
-  preflightContinue: false,
-  optionsSuccessStatus: 204
+  origin: allowedOrigins,
+  credentials: true
 }));
-
-// Handle OPTIONS requests explicitly (preflight)
-app.options('*', cors());
 
 // Security middleware - Configure helmet to allow CORS
 app.use(helmet({
-  crossOriginResourcePolicy: { policy: "cross-origin" },
-  crossOriginEmbedderPolicy: false,
-  crossOriginOpenerPolicy: false
+  crossOriginResourcePolicy: { policy: "cross-origin" }
 }));
 
-// Rate limiting - Skip for OPTIONS requests
+// Rate limiting
 const limiter = rateLimit({
   windowMs: 15 * 60 * 1000, // 15 minutes
   max: 100, // limit each IP to 100 requests per windowMs
-  message: 'Too many requests from this IP, please try again later.',
-  skip: (req) => req.method === 'OPTIONS' // Skip rate limiting for preflight requests
+  message: 'Too many requests from this IP, please try again later.'
 });
 app.use(limiter);
 
