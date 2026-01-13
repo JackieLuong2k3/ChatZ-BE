@@ -16,9 +16,13 @@ require('./config/passport');
 
 const app = express();
 const server = http.createServer(app);
+
+// Prepare allowed origins for Socket.IO
+const socketAllowedOrigins = process.env.FRONTEND_URL?.split(',').map(url => url.trim()) || ['http://localhost:3000'];
+
 const io = new Server(server, {
   cors: {
-    origin: process.env.FRONTEND_URL?.split(',') || ['http://localhost:3000'],
+    origin: socketAllowedOrigins,
     credentials: true,
     methods: ['GET', 'POST']
   },
@@ -40,14 +44,39 @@ if (!portNumber || isNaN(portNumber)) {
 
 // CORS configuration - Simple and straightforward
 const allowedOrigins = process.env.FRONTEND_URL?.split(',').map(url => url.trim()) || ['http://localhost:3000'];
+
+// Log allowed origins for debugging
+console.log('🌐 Allowed CORS origins:', allowedOrigins);
+
 const corsOptions = {
-  origin: allowedOrigins,
+  origin: function (origin, callback) {
+    // Allow requests with no origin (like mobile apps, Postman, etc.)
+    if (!origin) {
+      return callback(null, true);
+    }
+    
+    // Check if origin is in allowed list
+    if (allowedOrigins.indexOf(origin) !== -1) {
+      callback(null, true);
+    } else {
+      console.warn('⚠️  CORS blocked origin:', origin);
+      console.warn('⚠️  Allowed origins:', allowedOrigins);
+      callback(new Error('Not allowed by CORS'));
+    }
+  },
   credentials: true,
-  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS"],
-  allowedHeaders: ["Content-Type", "Authorization"]
+  methods: ["GET", "POST", "PUT", "DELETE", "OPTIONS", "PATCH"],
+  allowedHeaders: ["Content-Type", "Authorization", "X-Requested-With"],
+  exposedHeaders: ["Content-Type", "Authorization"],
+  preflightContinue: false,
+  optionsSuccessStatus: 204
 };
+
+// Apply CORS middleware
 app.use(cors(corsOptions));
-app.options("*", cors(corsOptions));
+
+// Handle preflight requests explicitly
+app.options('*', cors(corsOptions));
 
 // Security middleware - Configure helmet to allow CORS
 app.use(helmet({
