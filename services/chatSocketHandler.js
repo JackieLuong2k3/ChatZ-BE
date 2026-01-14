@@ -95,7 +95,8 @@ const chatSocketHandler = (io, socket) => {
         },
         content: message.content,
         type: message.type,
-        createdAt: message.createdAt
+        createdAt: message.createdAt,
+        readBy: message.readBy || []
       });
 
       console.log(`Message sent in room ${roomId} by user ${socket.userId}`);
@@ -122,6 +123,80 @@ const chatSocketHandler = (io, socket) => {
       userId: socket.userId,
       roomId
     });
+  });
+
+  // Mark messages as read
+  socket.on('mark_messages_read', async (data) => {
+    try {
+      const { roomId, messageIds } = data;
+      const userIdStr = socket.userId;
+
+      if (!roomId) {
+        socket.emit('error', { message: 'Room ID is required' });
+        return;
+      }
+
+      // Verify user is participant of the room
+      const room = await Room.findById(roomId);
+      if (!room) {
+        socket.emit('error', { message: 'Room not found' });
+        return;
+      }
+
+      if (!room.participants.some(p => p.toString() === userIdStr)) {
+        socket.emit('error', { message: 'You are not a participant of this room' });
+        return;
+      }
+
+      // Mark messages as read
+      const updateResult = await Message.updateMany(
+        {
+          conversationId: roomId,
+          senderId: { $ne: userIdStr }, // Only mark messages from other users
+          'readBy.userId': { $ne: userIdStr } // Only if not already read by this user
+        },
+        {
+          $addToSet: {
+            readBy: {
+              userId: userIdStr,
+              readAt: new Date()
+            }
+          }
+        }
+      );
+
+      // Get the updated messages to emit
+      const updatedMessages = await Message.find({
+        conversationId: roomId,
+        senderId: { $ne: userIdStr },
+        'readBy.userId': userIdStr
+      }).select('_id senderId');
+
+      // Group messages by sender
+      const messagesBySender = {};
+      updatedMessages.forEach(msg => {
+        const senderId = msg.senderId.toString();
+        if (!messagesBySender[senderId]) {
+          messagesBySender[senderId] = [];
+        }
+        messagesBySender[senderId].push(msg._id.toString());
+      });
+
+      // Emit to each sender that their messages have been read
+      Object.keys(messagesBySender).forEach(senderId => {
+        io.to(roomId).emit('messages_read', {
+          roomId,
+          messageIds: messagesBySender[senderId],
+          readBy: userIdStr,
+          readAt: new Date()
+        });
+      });
+
+      console.log(`User ${socket.userId} marked messages as read in room ${roomId}`);
+    } catch (error) {
+      console.error('Error marking messages as read:', error);
+      socket.emit('error', { message: 'Failed to mark messages as read' });
+    }
   });
 };
 

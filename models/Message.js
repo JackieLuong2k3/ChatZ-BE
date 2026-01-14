@@ -6,7 +6,11 @@ const MessageSchema = new mongoose.Schema({
   content: { type: String, default: '' },
   type: { type: String, enum: ['text','image','voice','system'], default: 'text' },
   isFlagged: { type: Boolean, default: false },
-  moderationStatus: { type: String, enum: ['clean','pending','actioned'], default: 'clean', index: true }
+  moderationStatus: { type: String, enum: ['clean','pending','actioned'], default: 'clean', index: true },
+  readBy: [{ 
+    userId: { type: mongoose.Schema.Types.ObjectId, ref: 'User' },
+    readAt: { type: Date, default: Date.now }
+  }]
 }, { timestamps: { createdAt: 'createdAt', updatedAt: 'updatedAt' } });
 
 MessageSchema.index({ conversationId: 1, createdAt: -1 });

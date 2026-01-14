@@ -1,6 +1,6 @@
 const express = require('express');
 const { authenticateToken } = require('../middleware/auth');
-const { getMessages, sendMessage } = require('../controller/chatController');
+const { getMessages, sendMessage, markMessagesAsRead } = require('../controller/chatController');
 const router = express.Router();
 
 /**
@@ -16,5 +16,12 @@ router.get('/rooms/:roomId/messages', authenticateToken, getMessages);
  * @access Private
  */
 router.post('/rooms/:roomId/messages', authenticateToken, sendMessage);
+
+/**
+ * @route PUT /api/chat/rooms/:roomId/messages/read
+ * @desc Đánh dấu tin nhắn đã đọc
+ * @access Private
+ */
+router.put('/rooms/:roomId/messages/read', authenticateToken, markMessagesAsRead);
 
 module.exports = router;
