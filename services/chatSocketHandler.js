@@ -29,10 +29,23 @@ const chatSocketHandler = (io, socket) => {
   });
 
   // Leave room
-  socket.on('leave_room', (roomId) => {
-    socket.leave(roomId);
-    console.log(`User ${socket.userId} left room ${roomId}`);
-    socket.emit('left_room', { roomId });
+  socket.on('leave_room', async (roomId) => {
+    try {
+      socket.leave(roomId);
+      console.log(`User ${socket.userId} left room ${roomId}`);
+      
+      // Emit to the user who left
+      socket.emit('left_room', { roomId });
+      
+      // Emit to other users in the room that a partner has left
+      socket.to(roomId).emit('partner_left', {
+        roomId,
+        userId: socket.userId,
+        message: 'Đối phương đã rời khỏi cuộc trò chuyện'
+      });
+    } catch (error) {
+      console.error('Error leaving room:', error);
+    }
   });
 
   // Send message
