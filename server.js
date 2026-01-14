@@ -100,12 +100,35 @@ app.use(helmet({
   crossOriginOpenerPolicy: { policy: "same-origin-allow-popups" }
 }));
 
-// Rate limiting
+// Rate limiting - Cấu hình linh hoạt hơn cho ứng dụng chat
+const rateLimitWindow = parseInt(process.env.RATE_LIMIT_WINDOW_MS) || 15 * 60 * 1000; // 15 minutes default
+const rateLimitMax = parseInt(process.env.RATE_LIMIT_MAX_REQUESTS) || 500; // Tăng lên 500 requests/15 phút cho ứng dụng chat
+
 const limiter = rateLimit({
-  windowMs: 15 * 60 * 1000, // 15 minutes
-  max: 100, // limit each IP to 100 requests per windowMs
-  message: 'Too many requests from this IP, please try again later.'
+  windowMs: rateLimitWindow,
+  max: rateLimitMax, // Tăng giới hạn để phù hợp với ứng dụng chat (polling mỗi 5s = ~180 requests/15 phút)
+  message: {
+    error: 'Too many requests',
+    message: 'Bạn đã gửi quá nhiều yêu cầu. Vui lòng thử lại sau.',
+    retryAfter: Math.ceil(rateLimitWindow / 1000) // seconds
+  },
+  standardHeaders: true, // Return rate limit info in the `RateLimit-*` headers
+  legacyHeaders: false, // Disable the `X-RateLimit-*` headers
+  // Skip rate limiting for health check, Socket.IO và một số routes quan trọng
+  skip: (req) => {
+    // Skip health check
+    if (req.path === '/health' || req.path === '/') {
+      return true;
+    }
+    // Skip Socket.IO paths (socket.io uses its own path)
+    if (req.path.startsWith('/socket.io/')) {
+      return true;
+    }
+    return false;
+  }
 });
+
+// Áp dụng rate limiting cho tất cả routes trừ những routes đã skip
 app.use(limiter);
 
 // Logging
