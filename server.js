@@ -8,7 +8,7 @@ const rateLimit = require('express-rate-limit');
 const session = require('express-session');
 const passport = require('passport');
 const { connectDB } = require('./config/database');
-const { connectRedis } = require('./config/redis');
+const { connectRedis, isRedisConnected } = require('./config/redis');
 require('dotenv').config();
 
 // Import Passport configuration
@@ -238,10 +238,14 @@ const startServer = async () => {
       console.warn('⚠️  Upstash Redis connection failed, queue features may not work:', redisError.message);
       console.warn('⚠️  Make sure UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN are set in .env');
     }
-    
-    // Khởi động queue matcher (chạy mỗi 1 phút)
-    const { startQueueMatcher } = require('./services/queueMatcher');
-    startQueueMatcher(1);
+
+    // Chỉ khởi động queue matcher khi Redis đã kết nối
+    if (isRedisConnected()) {
+      const { startQueueMatcher } = require('./services/queueMatcher');
+      startQueueMatcher(1);
+    } else {
+      console.warn('⚠️  Queue matcher skipped (Redis not connected)');
+    }
     
     // Khởi động server với Socket.IO
     // Bind to 0.0.0.0 to accept connections from all network interfaces (required for deployment)

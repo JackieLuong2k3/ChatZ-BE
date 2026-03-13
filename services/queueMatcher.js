@@ -1,5 +1,5 @@
 const queueService = require('./queue.service');
-const { getRedisClient } = require('../config/redis');
+const { getRedisClient, isRedisConnected } = require('../config/redis');
 const { getQueueKey, parseQueueData } = queueService;
 
 const QUEUE_SET_KEY = 'queue:set';
@@ -43,6 +43,10 @@ const getAllQueues = async () => {
  */
 const runQueueMatcher = async () => {
   try {
+    if (!isRedisConnected()) {
+      console.log('⏭️  Queue matcher skipped (Redis not connected)');
+      return { matchedCount: 0, totalQueued: 0 };
+    }
     console.log('🔄 Đang chạy queue matcher...');
 
     // 1. Dọn dẹp queue hết hạn

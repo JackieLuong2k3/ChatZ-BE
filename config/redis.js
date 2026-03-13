@@ -60,6 +60,11 @@ const connectRedis = async () => {
 };
 
 /**
+ * Kiểm tra Redis đã kết nối chưa
+ */
+const isRedisConnected = () => !!wrappedClient;
+
+/**
  * Lấy Redis client (wrapper)
  */
 const getRedisClient = () => {
@@ -82,6 +87,7 @@ const disconnectRedis = async () => {
 module.exports = {
   connectRedis,
   getRedisClient,
+  isRedisConnected,
   disconnectRedis
 };
 
